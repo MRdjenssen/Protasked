@@ -362,12 +362,17 @@ const AdminDashboard = ({ db, user, handleLogout, setError, setMessage }) => {
                 </div>
             </header>
 
-            <div className="mb-6 border-b border-slate-200 dark:border-slate-700">
+            <div className="mb-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <nav className="flex space-x-4">
                     <button onClick={() => setView('calendar')} className={`flex items-center gap-2 px-4 py-3 font-semibold ${view === 'calendar' ? 'text-sky-600 border-b-2 border-sky-600' : 'text-slate-500'}`}><CalendarIcon size={18}/> Schedules</button>
                     <button onClick={() => setView('orders')} className={`flex items-center gap-2 px-4 py-3 font-semibold ${view === 'orders' ? 'text-sky-600 border-b-2 border-sky-600' : 'text-slate-500'}`}><ShoppingCart size={18}/> Orders</button>
                     <button onClick={() => setView('manuals')} className={`flex items-center gap-2 px-4 py-3 font-semibold ${view === 'manuals' ? 'text-sky-600 border-b-2 border-sky-600' : 'text-slate-500'}`}><BookOpen size={18}/> Manuals</button>
                 </nav>
+                {view === 'calendar' && (
+                    <button onClick={openTemplateModalForNew} className="btn-primary flex items-center gap-2">
+                        <Plus size={16}/> New Task Template
+                    </button>
+                )}
             </div>
 
             {view === 'calendar' && <CalendarView currentDate={currentDate} setCurrentDate={setCurrentDate} templates={templates} dailyOverrides={dailyOverrides} onTaskClick={openTemplateModalForEdit} onDayClick={handleDayClick} />}
