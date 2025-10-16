@@ -56,6 +56,11 @@ const shouldTaskAppearOn = (task, date) => {
 
     switch(task.repeatRule?.type) {
         case 'daily': return true;
+        case 'bi-daily': {
+            const diffTime = Math.abs(checkDate - startDate);
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays % 2 === 0;
+        }
         case 'weekly': return checkDate.getDay() === startDate.getDay();
         case 'bi-weekly': {
             const diffTime = Math.abs(checkDate - startDate);
@@ -63,8 +68,15 @@ const shouldTaskAppearOn = (task, date) => {
             return checkDate.getDay() === startDate.getDay() && diffWeeks % 2 === 0;
         }
         case 'monthly': return checkDate.getDate() === startDate.getDate();
-        case 'semi-annually': return checkDate.getDate() === startDate.getDate() && (checkDate.getMonth() - startDate.getMonth()) % 6 === 0;
+        case 'bi-monthly': {
+            const monthDiff = (checkDate.getFullYear() - startDate.getFullYear()) * 12 + checkDate.getMonth() - startDate.getMonth();
+            return checkDate.getDate() === startDate.getDate() && monthDiff % 2 === 0;
+        }
         case 'yearly': return checkDate.getDate() === startDate.getDate() && checkDate.getMonth() === startDate.getMonth();
+        case 'bi-yearly': {
+            const yearDiff = checkDate.getFullYear() - startDate.getFullYear();
+            return checkDate.getDate() === startDate.getDate() && checkDate.getMonth() === startDate.getMonth() && yearDiff % 2 === 0;
+        }
         default: return toDateString(checkDate) === toDateString(startDate);
     }
 };
@@ -319,6 +331,14 @@ const AdminDashboard = ({ db, user, handleLogout, setError, setMessage }) => {
     const openManualModalForEdit = (manual) => { setEditingManual(manual); setIsManualModalOpen(true); };
 
     const handleDayClick = async (date) => {
+        const today = new Date();
+        const twoMonthsFromNow = new Date(today.getFullYear(), today.getMonth() + 2, today.getDate());
+
+        if (date > twoMonthsFromNow) {
+            setError("Cannot generate tasks more than two months in advance.");
+            return;
+        }
+
         const dateStr = toDateString(date);
         const dailyTasksDocRef = doc(db, `artifacts/${appId}/public/data/daily_tasks`, dateStr);
         try {
@@ -568,7 +588,7 @@ const TaskTemplateModal = ({ db, user, task, closeModal, setError, setMessage })
                         <div className="flex-1"><label htmlFor="priority" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Priority</label><select id="priority" value={priority} onChange={e => setPriority(e.target.value)} className="w-full input-style"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div>
                     </div>
                     <div className="flex gap-4">
-                        <div className="flex-1"><label htmlFor="repeatType" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Repeat</label><select id="repeatType" value={repeatType} onChange={e => setRepeatType(e.target.value)} className="w-full input-style"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="bi-weekly">Every 2 Weeks</option><option value="monthly">Monthly</option><option value="semi-annually">Every 6 Months</option><option value="yearly">Yearly</option></select></div>
+                        <div className="flex-1"><label htmlFor="repeatType" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Repeat</label><select id="repeatType" value={repeatType} onChange={e => setRepeatType(e.target.value)} className="w-full input-style"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="bi-daily">Bi-Daily</option><option value="weekly">Weekly</option><option value="bi-weekly">Bi-Weekly</option><option value="monthly">Monthly</option><option value="bi-monthly">Bi-Monthly</option><option value="yearly">Yearly</option><option value="bi-yearly">Bi-Yearly</option></select></div>
                         <div className="flex-1"><label htmlFor="timeOfDay" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Time of Day</label><select id="timeOfDay" value={timeOfDay} onChange={e => setTimeOfDay(e.target.value)} className="w-full input-style"><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="night">Night</option></select></div>
                     </div>
                     <div className="flex justify-between items-center pt-4">
