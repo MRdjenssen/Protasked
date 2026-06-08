@@ -228,9 +228,9 @@ const CalendarView = ({ currentDate, setCurrentDate, templates, dailyOverrides, 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-                <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><ChevronLeft/></button>
+                <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400"><ChevronLeft className="text-slate-400" /></button>
                 <h2 className="text-xl font-bold text-slate-700 dark:text-slate-200">{monthName} {year}</h2>
-                <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><ChevronRight/></button>
+                <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400"><ChevronRight className="text-slate-400" /></button>
             </div>
             <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-500 dark:text-slate-400 mb-2">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day}>{day}</div>)}
@@ -481,8 +481,8 @@ const WorkerDashboard = ({ db, user, handleLogout, setError, setMessage }) => {
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{isToday ? "Today's Tasks" : "Tasks"} - <span className="font-normal text-slate-500">{formattedDate}</span></h2>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => changeDay(-1)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400"><ChevronLeft/></button>
-                            <button onClick={() => changeDay(1)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400"><ChevronRight/></button>
+                            <button onClick={() => changeDay(-1)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400"><ChevronLeft className="text-slate-400" /></button>
+                            <button onClick={() => changeDay(1)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400"><ChevronRight className="text-slate-400" /></button>
                         </div>
                     </div>
                     {isLoading ? <div className="p-8 text-center">Loading tasks...</div> : allTasksEmpty ? (
