@@ -481,8 +481,8 @@ const WorkerDashboard = ({ db, user, handleLogout, setError, setMessage }) => {
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{isToday ? "Today's Tasks" : "Tasks"} - <span className="font-normal text-slate-500">{formattedDate}</span></h2>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => changeDay(-1)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><ChevronLeft/></button>
-                            <button onClick={() => changeDay(1)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><ChevronRight/></button>
+                            <button onClick={() => changeDay(-1)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400"><ChevronLeft/></button>
+                            <button onClick={() => changeDay(1)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400"><ChevronRight/></button>
                         </div>
                     </div>
                     {isLoading ? <div className="p-8 text-center">Loading tasks...</div> : allTasksEmpty ? (
