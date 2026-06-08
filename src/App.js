@@ -21,7 +21,7 @@ import {
     addDoc,
     Timestamp
 } from 'firebase/firestore';
-import { CheckCircle, Circle, Plus, Trash2, Edit, LogOut, Flag, X, AlertTriangle, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sun, Coffee, Moon, Mail, KeyRound, Save, Ban, ShoppingCart, ListOrdered, BookOpen, Tag } from 'lucide-react';
+import { CheckCircle, Circle, Plus, Trash2, Edit, LogOut, Flag, X, AlertTriangle, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sun, Coffee, Moon, Mail, KeyRound, Save, Ban, ShoppingCart, ListOrdered, BookOpen } from 'lucide-react';
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
