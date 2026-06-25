@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, Timestamp, setLogLevel } from 'firebase/firestore';
-import { AlertTriangle, CheckCircle, Circle, Flag, LogOut, MessageSquare, Plus, User, UserCheck, X } from 'lucide-react';
+import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, Timestamp, setLogLevel } from 'firebase/firestore';
+import { AlertTriangle, CheckCircle, ChevronDown, Circle, Flag, LogOut, MessageSquare, Plus, Trash2, User, UserCheck, X } from 'lucide-react';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDn7jLT-4miPWcFyFLIFDgsc2vGD1i9Qpc',
@@ -33,6 +33,9 @@ const formatDate = (value) => {
   if (Number.isNaN(date.getTime())) return '-';
   return date.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
+
+const taskTitle = (task) => task?.title || task?.task || 'Untitled task';
+const taskDescription = (task) => task?.description || '';
 
 export default function TodoPage() {
   const [db, setDb] = useState(null);
@@ -106,6 +109,19 @@ export default function TodoPage() {
   const openTasks = useMemo(() => tasks.filter((task) => task.status !== 'completed'), [tasks]);
   const completedTasks = useMemo(() => tasks.filter((task) => task.status === 'completed'), [tasks]);
 
+  const deleteCompletedTask = async (task) => {
+    if (!db || !task || task.status !== 'completed') return;
+    const confirmed = window.confirm(`Delete the completed task "${taskTitle(task)}"? This cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      await deleteDoc(doc(db, tasksPath, task.id));
+      setMessage('Completed task deleted.');
+    } catch (err) {
+      setError('Could not delete the completed task.');
+    }
+  };
+
   if (user === undefined) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">Loading...</div>;
 
   return (
@@ -135,7 +151,7 @@ export default function TodoPage() {
               {tab === 'open' ? (
                 <TaskList tasks={openTasks} emptyTitle="No open tasks" emptyText="Create the first action item." onComplete={setCompleteTask} />
               ) : (
-                <TaskList tasks={completedTasks} emptyTitle="No completed tasks" emptyText="Completed tasks will be stored here." completed />
+                <TaskList tasks={completedTasks} emptyTitle="No completed tasks" emptyText="Completed tasks will be stored here." completed onDelete={deleteCompletedTask} />
               )}
             </div>
           </section>
@@ -184,7 +200,7 @@ function Login({ auth, setError }) {
   );
 }
 
-function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false }) {
+function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false, onDelete }) {
   if (tasks.length === 0) {
     return (
       <div className="text-center py-16">
@@ -197,29 +213,58 @@ function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false 
 
   return (
     <div className="space-y-4">
-      {tasks.map((task) => (
-        <article key={task.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-            {onComplete && <button onClick={() => onComplete(task)} title="Mark task as completed" className="flex-shrink-0 mt-1"><Circle className="text-slate-300 hover:text-green-500" size={28} /></button>}
-            {completed && <CheckCircle className="flex-shrink-0 mt-1 text-green-500" size={28} />}
-            <div className="flex-grow min-w-0">
-              <p className="text-lg font-semibold text-slate-800 dark:text-slate-100 break-words">{task.task}</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 text-sm">
-                <Meta icon={<User size={15} />} label="Added by" value={task.addedByName || 'Unknown'} />
-                <Meta icon={<Flag size={15} />} label="Importance" value={labels[task.importance] || 'Normal'} badgeClass={badge[task.importance] || badge.normal} />
-                <Meta icon={<UserCheck size={15} />} label="Responsible" value={task.responsible || 'Not assigned'} />
-              </div>
-              {completed && (
-                <div className="mt-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3 text-sm text-slate-600 dark:text-slate-300">
-                  <p className="font-semibold text-green-700 dark:text-green-300">Marked off by {task.completedByName || 'Unknown'} on {formatDate(task.completedAt)}</p>
-                  {task.completionComment ? <p className="mt-2 flex gap-2"><MessageSquare size={16} className="flex-shrink-0 mt-0.5" /> <span>{task.completionComment}</span></p> : <p className="mt-2 text-slate-500 dark:text-slate-400">No comment left.</p>}
-                </div>
-              )}
-            </div>
-          </div>
-        </article>
-      ))}
+      {tasks.map((task) => <TaskCard key={task.id} task={task} onComplete={onComplete} completed={completed} onDelete={onDelete} />)}
     </div>
+  );
+}
+
+function TaskCard({ task, onComplete, completed, onDelete }) {
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const title = taskTitle(task);
+  const description = taskDescription(task);
+
+  return (
+    <article className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+      <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+        {onComplete && <button onClick={() => onComplete(task)} title="Mark task as completed" className="flex-shrink-0 mt-1"><Circle className="text-slate-300 hover:text-green-500" size={28} /></button>}
+        {completed && <CheckCircle className="flex-shrink-0 mt-1 text-green-500" size={28} />}
+        <div className="flex-grow min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 break-words">{title}</h2>
+            {completed && onDelete && (
+              <button onClick={() => onDelete(task)} className="btn-danger compact flex items-center justify-center gap-2 self-start">
+                <Trash2 size={16} /> Delete
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 text-sm">
+            <Meta icon={<User size={15} />} label="Added by" value={task.addedByName || 'Unknown'} />
+            <Meta icon={<Flag size={15} />} label="Importance" value={labels[task.importance] || 'Normal'} badgeClass={badge[task.importance] || badge.normal} />
+            <Meta icon={<UserCheck size={15} />} label="Responsible" value={task.responsible || 'Not assigned'} />
+          </div>
+
+          {description ? (
+            <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <button onClick={() => setDescriptionOpen((current) => !current)} className="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                <span>Description</span>
+                <ChevronDown size={18} className={`transition-transform ${descriptionOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {descriptionOpen && <p className="px-3 pb-3 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">{description}</p>}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">No description added.</p>
+          )}
+
+          {completed && (
+            <div className="mt-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3 text-sm text-slate-600 dark:text-slate-300">
+              <p className="font-semibold text-green-700 dark:text-green-300">Marked off by {task.completedByName || 'Unknown'} on {formatDate(task.completedAt)}</p>
+              {task.completionComment ? <p className="mt-2 flex gap-2"><MessageSquare size={16} className="flex-shrink-0 mt-0.5" /> <span>{task.completionComment}</span></p> : <p className="mt-2 text-slate-500 dark:text-slate-400">No comment left.</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -233,7 +278,8 @@ function Meta({ icon, label, value, badgeClass }) {
 }
 
 function AddTask({ db, user, close, setError, setMessage }) {
-  const [task, setTask] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [importance, setImportance] = useState('normal');
   const [responsible, setResponsible] = useState('');
   const [saving, setSaving] = useState(false);
@@ -241,11 +287,13 @@ function AddTask({ db, user, close, setError, setMessage }) {
   const submit = async (event) => {
     event.preventDefault();
     if (!db || !user) return;
-    if (!task.trim() || !responsible.trim()) return setError('Fill in the task and responsible person or party.');
+    if (!title.trim() || !responsible.trim()) return setError('Fill in the title and responsible person or party.');
     setSaving(true);
     try {
       await addDoc(collection(db, tasksPath), {
-        task: task.trim(),
+        title: title.trim(),
+        description: description.trim(),
+        task: title.trim(),
         importance,
         responsible: responsible.trim(),
         addedByUid: user.uid,
@@ -265,7 +313,8 @@ function AddTask({ db, user, close, setError, setMessage }) {
   return (
     <Modal title="New action item" close={close}>
       <form onSubmit={submit} className="space-y-4">
-        <div><label className="label">Task</label><textarea value={task} onChange={(event) => setTask(event.target.value)} required rows="4" className="input-style" placeholder="Describe the task..." /></div>
+        <div><label className="label">Title</label><input value={title} onChange={(event) => setTitle(event.target.value)} required className="input-style" placeholder="Short title for the task" /></div>
+        <div><label className="label">Description</label><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows="4" className="input-style" placeholder="Add the details here. This will be collapsed on the main page." /></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><label className="label">Importance</label><select value={importance} onChange={(event) => setImportance(event.target.value)} className="input-style"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
           <div><label className="label">Responsible person / party</label><input value={responsible} onChange={(event) => setResponsible(event.target.value)} required className="input-style" placeholder="e.g. Sam, supplier, planning" /></div>
@@ -303,7 +352,11 @@ function CompleteTask({ db, user, task, close, setError, setMessage }) {
   return (
     <Modal title="Mark task as completed" close={close}>
       <div className="space-y-4">
-        <div className="rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3"><p className="font-semibold text-slate-800 dark:text-slate-100">{task.task}</p><p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Responsible: {task.responsible || 'Not assigned'}</p></div>
+        <div className="rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3">
+          <p className="font-semibold text-slate-800 dark:text-slate-100">{taskTitle(task)}</p>
+          {taskDescription(task) && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap">{taskDescription(task)}</p>}
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Responsible: {task.responsible || 'Not assigned'}</p>
+        </div>
         <div><label className="label">Comment after completion (optional)</label><textarea value={comment} onChange={(event) => setComment(event.target.value)} rows="4" className="input-style" placeholder="Leave a note about what was done..." /></div>
         <div className="flex justify-end gap-3"><button type="button" onClick={close} className="btn-secondary">Cancel</button><button type="button" onClick={complete} disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Mark off'}</button></div>
       </div>
@@ -340,4 +393,7 @@ const styles = `
 .btn-secondary:hover { background-color: #cbd5e1; }
 .dark .btn-secondary { background-color: #475569; color: #e2e8f0; }
 .dark .btn-secondary:hover { background-color: #64748b; }
+.btn-danger { padding: 0.6rem 1rem; background-color: #ef4444; color: white; border-radius: 0.5rem; font-weight: 700; transition: background-color 0.2s; }
+.btn-danger:hover { background-color: #dc2626; }
+.btn-danger.compact { padding: 0.45rem 0.75rem; font-size: 0.875rem; }
 `;
