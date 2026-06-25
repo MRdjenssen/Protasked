@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, Timestamp, setLogLevel } from 'firebase/firestore';
-import { AlertTriangle, CheckCircle, ChevronDown, Circle, Flag, LogOut, MessageSquare, Plus, Trash2, User, UserCheck, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, ChevronDown, Circle, Flag, LogOut, MapPin, MessageSquare, Plus, Trash2, User, UserCheck, X } from 'lucide-react';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDn7jLT-4miPWcFyFLIFDgsc2vGD1i9Qpc',
@@ -27,6 +27,10 @@ const badge = {
   urgent: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
 };
 
+const locationLabels = { WB: 'WB', SB: 'SB', algemeen: 'Algemeen' };
+const locationOrder = ['WB', 'SB', 'algemeen'];
+const normalizeLocation = (location) => (locationOrder.includes(location) ? location : 'algemeen');
+
 const formatDate = (value) => {
   if (!value) return '-';
   const date = typeof value.toDate === 'function' ? value.toDate() : new Date(value);
@@ -37,12 +41,25 @@ const formatDate = (value) => {
 const taskTitle = (task) => task?.title || task?.task || 'Untitled task';
 const taskDescription = (task) => task?.description || '';
 
+const matchesFilters = (task, filters) => {
+  const location = normalizeLocation(task.location);
+  const importance = task.importance || 'normal';
+  const responsible = task.responsible || '';
+
+  if (filters.location !== 'all' && location !== filters.location) return false;
+  if (filters.importance !== 'all' && importance !== filters.importance) return false;
+  if (filters.responsible !== 'all' && responsible !== filters.responsible) return false;
+
+  return true;
+};
+
 export default function TodoPage() {
   const [db, setDb] = useState(null);
   const [auth, setAuth] = useState(null);
   const [user, setUser] = useState(undefined);
   const [tasks, setTasks] = useState([]);
   const [tab, setTab] = useState('open');
+  const [filters, setFilters] = useState({ location: 'all', importance: 'all', responsible: 'all' });
   const [showAdd, setShowAdd] = useState(false);
   const [completeTask, setCompleteTask] = useState(null);
   const [message, setMessage] = useState(null);
@@ -96,6 +113,8 @@ export default function TodoPage() {
         items.sort((a, b) => {
           const statusSort = (a.status === 'completed' ? 1 : 0) - (b.status === 'completed' ? 1 : 0);
           if (statusSort !== 0) return statusSort;
+          const locationSort = locationOrder.indexOf(normalizeLocation(a.location)) - locationOrder.indexOf(normalizeLocation(b.location));
+          if (locationSort !== 0) return locationSort;
           const prioritySort = (order[a.importance] ?? 2) - (order[b.importance] ?? 2);
           if (prioritySort !== 0) return prioritySort;
           return (b.addedAt?.toMillis?.() || 0) - (a.addedAt?.toMillis?.() || 0);
@@ -108,6 +127,11 @@ export default function TodoPage() {
 
   const openTasks = useMemo(() => tasks.filter((task) => task.status !== 'completed'), [tasks]);
   const completedTasks = useMemo(() => tasks.filter((task) => task.status === 'completed'), [tasks]);
+  const filteredOpenTasks = useMemo(() => openTasks.filter((task) => matchesFilters(task, filters)), [openTasks, filters]);
+  const filteredCompletedTasks = useMemo(() => completedTasks.filter((task) => matchesFilters(task, filters)), [completedTasks, filters]);
+  const responsibleOptions = useMemo(() => {
+    return Array.from(new Set(tasks.map((task) => task.responsible).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [tasks]);
 
   const deleteCompletedTask = async (task) => {
     if (!db || !task || task.status !== 'completed') return;
@@ -148,10 +172,17 @@ export default function TodoPage() {
               <button onClick={() => setTab('completed')} className={`py-4 font-semibold border-b-2 ${tab === 'completed' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500'}`}>Completed ({completedTasks.length})</button>
             </nav>
             <div className="p-4 sm:p-6">
+              <FilterPanel
+                filters={filters}
+                setFilters={setFilters}
+                responsibleOptions={responsibleOptions}
+                visibleCount={tab === 'open' ? filteredOpenTasks.length : filteredCompletedTasks.length}
+                totalCount={tab === 'open' ? openTasks.length : completedTasks.length}
+              />
               {tab === 'open' ? (
-                <TaskList tasks={openTasks} emptyTitle="No open tasks" emptyText="Create the first action item." onComplete={setCompleteTask} />
+                <TaskList tasks={filteredOpenTasks} emptyTitle="No open tasks" emptyText="Create the first action item or change the filters." onComplete={setCompleteTask} />
               ) : (
-                <TaskList tasks={completedTasks} emptyTitle="No completed tasks" emptyText="Completed tasks will be stored here." completed onDelete={deleteCompletedTask} />
+                <TaskList tasks={filteredCompletedTasks} emptyTitle="No completed tasks" emptyText="Completed tasks will be stored here. Change the filters if needed." completed onDelete={deleteCompletedTask} />
               )}
             </div>
           </section>
@@ -200,7 +231,55 @@ function Login({ auth, setError }) {
   );
 }
 
+function FilterPanel({ filters, setFilters, responsibleOptions, visibleCount, totalCount }) {
+  const hasActiveFilters = filters.location !== 'all' || filters.importance !== 'all' || filters.responsible !== 'all';
+  const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+
+  return (
+    <div className="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 p-4">
+      <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-grow">
+          <div>
+            <label className="label">Location</label>
+            <select value={filters.location} onChange={(event) => updateFilter('location', event.target.value)} className="input-style">
+              <option value="all">All locations</option>
+              {locationOrder.map((location) => <option key={location} value={location}>{locationLabels[location]}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Importance</label>
+            <select value={filters.importance} onChange={(event) => updateFilter('importance', event.target.value)} className="input-style">
+              <option value="all">All importance levels</option>
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Responsible person / party</label>
+            <select value={filters.responsible} onChange={(event) => updateFilter('responsible', event.target.value)} className="input-style">
+              <option value="all">All people / parties</option>
+              {responsibleOptions.map((responsible) => <option key={responsible} value={responsible}>{responsible}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row lg:flex-col gap-2 lg:items-end">
+          <p className="text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">Showing {visibleCount} of {totalCount}</p>
+          {hasActiveFilters && <button type="button" onClick={() => setFilters({ location: 'all', importance: 'all', responsible: 'all' })} className="btn-secondary compact">Clear filters</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false, onDelete }) {
+  const groupedTasks = useMemo(() => {
+    return locationOrder
+      .map((location) => ({ location, tasks: tasks.filter((task) => normalizeLocation(task.location) === location) }))
+      .filter((group) => group.tasks.length > 0);
+  }, [tasks]);
+
   if (tasks.length === 0) {
     return (
       <div className="text-center py-16">
@@ -212,8 +291,19 @@ function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false,
   }
 
   return (
-    <div className="space-y-4">
-      {tasks.map((task) => <TaskCard key={task.id} task={task} onComplete={onComplete} completed={completed} onDelete={onDelete} />)}
+    <div className="space-y-8">
+      {groupedTasks.map((group) => (
+        <section key={group.location}>
+          <div className="mb-3 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
+            <MapPin size={18} className="text-sky-600 dark:text-sky-400" />
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{locationLabels[group.location]}</h2>
+            <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-xs font-bold text-slate-600 dark:text-slate-300">{group.tasks.length}</span>
+          </div>
+          <div className="space-y-4">
+            {group.tasks.map((task) => <TaskCard key={task.id} task={task} onComplete={onComplete} completed={completed} onDelete={onDelete} />)}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -222,6 +312,7 @@ function TaskCard({ task, onComplete, completed, onDelete }) {
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const title = taskTitle(task);
   const description = taskDescription(task);
+  const location = normalizeLocation(task.location);
 
   return (
     <article className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
@@ -238,7 +329,8 @@ function TaskCard({ task, onComplete, completed, onDelete }) {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 text-sm">
+            <Meta icon={<MapPin size={15} />} label="Location" value={locationLabels[location]} />
             <Meta icon={<User size={15} />} label="Added by" value={task.addedByName || 'Unknown'} />
             <Meta icon={<Flag size={15} />} label="Importance" value={labels[task.importance] || 'Normal'} badgeClass={badge[task.importance] || badge.normal} />
             <Meta icon={<UserCheck size={15} />} label="Responsible" value={task.responsible || 'Not assigned'} />
@@ -280,6 +372,7 @@ function Meta({ icon, label, value, badgeClass }) {
 function AddTask({ db, user, close, setError, setMessage }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [location, setLocation] = useState('algemeen');
   const [importance, setImportance] = useState('normal');
   const [responsible, setResponsible] = useState('');
   const [saving, setSaving] = useState(false);
@@ -294,6 +387,7 @@ function AddTask({ db, user, close, setError, setMessage }) {
         title: title.trim(),
         description: description.trim(),
         task: title.trim(),
+        location,
         importance,
         responsible: responsible.trim(),
         addedByUid: user.uid,
@@ -315,7 +409,8 @@ function AddTask({ db, user, close, setError, setMessage }) {
       <form onSubmit={submit} className="space-y-4">
         <div><label className="label">Title</label><input value={title} onChange={(event) => setTitle(event.target.value)} required className="input-style" placeholder="Short title for the task" /></div>
         <div><label className="label">Description</label><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows="4" className="input-style" placeholder="Add the details here. This will be collapsed on the main page." /></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div><label className="label">Location</label><select value={location} onChange={(event) => setLocation(event.target.value)} className="input-style"><option value="WB">WB</option><option value="SB">SB</option><option value="algemeen">Algemeen</option></select></div>
           <div><label className="label">Importance</label><select value={importance} onChange={(event) => setImportance(event.target.value)} className="input-style"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
           <div><label className="label">Responsible person / party</label><input value={responsible} onChange={(event) => setResponsible(event.target.value)} required className="input-style" placeholder="e.g. Sam, supplier, planning" /></div>
         </div>
@@ -355,6 +450,7 @@ function CompleteTask({ db, user, task, close, setError, setMessage }) {
         <div className="rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3">
           <p className="font-semibold text-slate-800 dark:text-slate-100">{taskTitle(task)}</p>
           {taskDescription(task) && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap">{taskDescription(task)}</p>}
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Location: {locationLabels[normalizeLocation(task.location)]}</p>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Responsible: {task.responsible || 'Not assigned'}</p>
         </div>
         <div><label className="label">Comment after completion (optional)</label><textarea value={comment} onChange={(event) => setComment(event.target.value)} rows="4" className="input-style" placeholder="Leave a note about what was done..." /></div>
@@ -391,6 +487,7 @@ const styles = `
 .btn-primary:disabled { background-color: #93c5fd; cursor: not-allowed; }
 .btn-secondary { padding: 0.6rem 1rem; background-color: #e2e8f0; color: #1e293b; border-radius: 0.5rem; font-weight: 700; transition: background-color 0.2s; }
 .btn-secondary:hover { background-color: #cbd5e1; }
+.btn-secondary.compact { padding: 0.45rem 0.75rem; font-size: 0.875rem; }
 .dark .btn-secondary { background-color: #475569; color: #e2e8f0; }
 .dark .btn-secondary:hover { background-color: #64748b; }
 .btn-danger { padding: 0.6rem 1rem; background-color: #ef4444; color: white; border-radius: 0.5rem; font-weight: 700; transition: background-color 0.2s; }
