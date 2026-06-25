@@ -145,18 +145,19 @@ export default function App() {
             return <AuthScreen auth={auth} setError={setError} />;
         }
 
-        const isTodoPath = window.location.pathname === '/todo';
+        const currentPath = window.location.pathname.toLowerCase().replace(/\/$/, "");
 
-        if (isTodoPath) {
+        if (currentPath === '/todo') {
             if (user.role === 'admin') {
                 return <TodoPage db={db} user={user} handleLogout={handleLogout} setError={setError} setMessage={setMessage} />;
             } else {
                 return (
-                    <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-4">
-                        <div className="text-center">
-                            <h1 className="text-4xl font-bold mb-4">Access Denied</h1>
-                            <p className="mb-6">You do not have permission to view this page.</p>
-                            <button onClick={() => window.location.href = '/'} className="btn-primary">Go to Dashboard</button>
+                    <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-4 text-center">
+                        <div className="max-w-md">
+                            <AlertTriangle size={48} className="mx-auto text-yellow-500 mb-4"/>
+                            <h1 className="text-4xl font-bold mb-4">Toegang Geweigerd</h1>
+                            <p className="text-slate-400 mb-8">U heeft geen toestemming om deze pagina te bekijken. Alleen beheerders hebben toegang tot de takenlijst.</p>
+                            <button onClick={() => window.location.href = '/'} className="w-full py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg transition shadow-lg">Terug naar Dashboard</button>
                         </div>
                     </div>
                 );
@@ -377,6 +378,7 @@ const AdminDashboard = ({ db, user, handleLogout, setError, setMessage }) => {
             <header className="flex flex-wrap gap-4 justify-between items-center mb-8">
                 <div><h1 className="text-3xl font-bold text-slate-800 dark:text-white">Admin Dashboard</h1></div>
                 <div className="flex items-center gap-4">
+                    <button onClick={() => window.location.href = '/todo'} className="px-4 py-2 bg-sky-600 text-white font-semibold rounded-lg hover:bg-sky-500 transition">Todo List</button>
                     <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-500 transition"><LogOut size={18}/> Logout</button>
                 </div>
             </header>
@@ -1264,7 +1266,7 @@ const DoneTable = ({ tasks }) => {
                         <tr key={task.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition text-sm">
                             <td className="p-4">
                                 <p className="text-slate-800 dark:text-slate-200 font-medium">{task.text}</p>
-                                <p className="text-slate-500 text-xs">Door {task.addedByName} for {task.responsible}</p>
+                                <p className="text-slate-500 text-xs">Door {task.addedByName} voor {task.responsible}</p>
                             </td>
                             <td className="p-4">
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
