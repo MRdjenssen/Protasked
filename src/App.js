@@ -82,6 +82,276 @@ const shouldTaskAppearOn = (task, date) => {
 };
 
 // --- Main App Component ---
+// --- Todo Page (Admin Only) ---
+const TodoPage = ({ db, user, handleLogout, setError, setMessage }) => {
+    const [activeTab, setActiveTab] = useState('todo');
+    const [tasks, setTasks] = useState([]);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isMarkDoneModalOpen, setIsMarkDoneModalOpen] = useState(false);
+    const [taskToMarkDone, setTaskToMarkDone] = useState(null);
+
+    useEffect(() => {
+        if (!db) return;
+        const q = query(collection(db, `artifacts/${appId}/public/data/todo_items`));
+        const unsub = onSnapshot(q, (snapshot) => {
+            const fetchedTasks = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            fetchedTasks.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+            setTasks(fetchedTasks);
+        }, () => setError("Failed to load todo tasks."));
+        return () => unsub();
+    }, [db, setError]);
+
+    const todoTasks = useMemo(() => tasks.filter(t => t.status === 'todo'), [tasks]);
+    const doneTasks = useMemo(() => tasks.filter(t => t.status === 'done'), [tasks]);
+
+    const openMarkDoneModal = (task) => {
+        setTaskToMarkDone(task);
+        setIsMarkDoneModalOpen(true);
+    };
+
+    return (
+        <div className="p-4 sm:p-8 max-w-6xl mx-auto">
+            <header className="flex justify-between items-center mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Todo List</h1>
+                    <p className="text-slate-500">Manage administrative tasks</p>
+                </div>
+                <div className="flex gap-4">
+                    <button onClick={() => window.location.href = '/'} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-white rounded-lg font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition">Back to Dashboard</button>
+                    <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-500 transition"><LogOut size={18}/> Logout</button>
+                </div>
+            </header>
+
+            <div className="mb-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <nav className="flex space-x-8">
+                    <button onClick={() => setActiveTab('todo')} className={`py-4 px-2 font-bold transition-colors relative ${activeTab === 'todo' ? 'text-sky-600' : 'text-slate-500 hover:text-slate-700'}`}>
+                        Actieve Lijst
+                        {activeTab === 'todo' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-600 rounded-t-full"></div>}
+                    </button>
+                    <button onClick={() => setActiveTab('done')} className={`py-4 px-2 font-bold transition-colors relative ${activeTab === 'done' ? 'text-sky-600' : 'text-slate-500 hover:text-slate-700'}`}>
+                        Voltooid
+                        {activeTab === 'done' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-600 rounded-t-full"></div>}
+                    </button>
+                </nav>
+                {activeTab === 'todo' && (
+                    <button onClick={() => setIsAddModalOpen(true)} className="btn-primary flex items-center gap-2">
+                        <Plus size={18}/> Nieuwe Taak
+                    </button>
+                )}
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg overflow-hidden">
+                {activeTab === 'todo' ? (
+                    <TodoTable tasks={todoTasks} onMarkDone={openMarkDoneModal} />
+                ) : (
+                    <DoneTable tasks={doneTasks} />
+                )}
+            </div>
+
+            {isAddModalOpen && <AddTodoModal db={db} user={user} closeModal={() => setIsAddModalOpen(false)} setError={setError} setMessage={setMessage} />}
+            {isMarkDoneModalOpen && <MarkDoneModal db={db} user={user} task={taskToMarkDone} closeModal={() => setIsMarkDoneModalOpen(false)} setError={setError} setMessage={setMessage} />}
+        </div>
+    );
+};
+
+const TodoTable = ({ tasks, onMarkDone }) => {
+    if (tasks.length === 0) return <div className="p-12 text-center text-slate-500">Geen actieve taken.</div>;
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+                <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-700/50 border-b dark:border-slate-700">
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Taak</th>
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Toegevoegd Door</th>
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Belangrijkheid</th>
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Verantwoordelijke</th>
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200 text-right">Acties</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y dark:divide-slate-700">
+                    {tasks.map(task => (
+                        <tr key={task.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
+                            <td className="p-4 text-slate-800 dark:text-slate-200 font-medium">{task.text}</td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400 text-sm">{task.addedByName}</td>
+                            <td className="p-4">
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                    task.importance === 'high' ? 'bg-red-100 text-red-700' :
+                                    task.importance === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-green-100 text-green-700'
+                                }`}>
+                                    {task.importance.toUpperCase()}
+                                </span>
+                            </td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400 text-sm">{task.responsible}</td>
+                            <td className="p-4 text-right">
+                                <button onClick={() => onMarkDone(task)} className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-full" title="Markeren als voltooid">
+                                    <CheckCircle size={20}/>
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const DoneTable = ({ tasks }) => {
+    if (tasks.length === 0) return <div className="p-12 text-center text-slate-500">Geen voltooide taken.</div>;
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+                <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-700/50 border-b dark:border-slate-700">
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Taak</th>
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Belangrijkheid</th>
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Afgevinkt Door</th>
+                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Opmerking</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y dark:divide-slate-700">
+                    {tasks.map(task => (
+                        <tr key={task.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition text-sm">
+                            <td className="p-4">
+                                <p className="text-slate-800 dark:text-slate-200 font-medium">{task.text}</p>
+                                <p className="text-slate-500 text-xs">Door {task.addedByName} voor {task.responsible}</p>
+                            </td>
+                            <td className="p-4">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    task.importance === 'high' ? 'bg-red-50 text-red-600' :
+                                    task.importance === 'medium' ? 'bg-yellow-50 text-yellow-600' :
+                                    'bg-green-50 text-green-600'
+                                }`}>
+                                    {task.importance}
+                                </span>
+                            </td>
+                            <td className="p-4">
+                                <p className="text-slate-800 dark:text-slate-200">{task.markedOffByName}</p>
+                                <p className="text-slate-500 text-xs">{task.completedAt?.toDate().toLocaleDateString()}</p>
+                            </td>
+                            <td className="p-4 text-slate-600 dark:text-slate-400 italic">
+                                {task.comment || 'Geen opmerking'}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const AddTodoModal = ({ db, user, closeModal, setError, setMessage }) => {
+    const [text, setText] = useState('');
+    const [importance, setImportance] = useState('medium');
+    const [responsible, setResponsible] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!text || !responsible) return;
+        setIsSaving(true);
+        try {
+            await addDoc(collection(db, `artifacts/${appId}/public/data/todo_items`), {
+                text,
+                importance,
+                responsible,
+                status: 'todo',
+                addedByUid: user.uid,
+                addedByName: user.name || user.email,
+                createdAt: Timestamp.now()
+            });
+            setMessage("Taak succesvol toegevoegd.");
+            closeModal();
+        } catch (err) {
+            setError("Fout bij het toevoegen van taak.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Nieuwe Taak Toevoegen</h2>
+                    <button onClick={closeModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
+                </div>
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Wat moet er gebeuren?</label>
+                        <textarea value={text} onChange={e => setText(e.target.value)} required className="w-full input-style" rows="3" placeholder="Beschrijf de taak..."></textarea>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Belangrijkheid</label>
+                            <select value={importance} onChange={e => setImportance(e.target.value)} className="w-full input-style">
+                                <option value="low">Laag</option>
+                                <option value="medium">Gemiddeld</option>
+                                <option value="high">Hoog</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Verantwoordelijke</label>
+                            <input type="text" value={responsible} onChange={e => setResponsible(e.target.value)} required className="w-full input-style" placeholder="Naam..."/>
+                        </div>
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                        <button type="button" onClick={closeModal} className="flex-1 btn-secondary py-3">Annuleren</button>
+                        <button type="submit" disabled={isSaving} className="flex-1 btn-primary py-3">{isSaving ? 'Bezig...' : 'Toevoegen'}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const MarkDoneModal = ({ db, user, task, closeModal, setError, setMessage }) => {
+    const [comment, setComment] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+            const taskRef = doc(db, `artifacts/${appId}/public/data/todo_items`, task.id);
+            await updateDoc(taskRef, {
+                status: 'done',
+                comment,
+                markedOffByUid: user.uid,
+                markedOffByName: user.name || user.email,
+                completedAt: Timestamp.now()
+            });
+            setMessage("Taak voltooid.");
+            closeModal();
+        } catch (err) {
+            setError("Fout bij het updaten van taak.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Taak Voltooien</h2>
+                    <button onClick={closeModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
+                </div>
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div>
+                        <p className="text-sm text-slate-500 mb-2">Taak: <span className="text-slate-800 dark:text-slate-200 font-medium">{task.text}</span></p>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Optionele opmerking</label>
+                        <textarea value={comment} onChange={e => setComment(e.target.value)} className="w-full input-style" rows="3" placeholder="Hoe is het gegaan?"></textarea>
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                        <button type="button" onClick={closeModal} className="flex-1 btn-secondary py-3">Annuleren</button>
+                        <button type="submit" disabled={isSaving} className="flex-1 btn-primary py-3 bg-green-600 hover:bg-green-500">{isSaving ? 'Bezig...' : 'Voltooien'}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
 export default function App() {
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
@@ -145,9 +415,9 @@ export default function App() {
             return <AuthScreen auth={auth} setError={setError} />;
         }
 
-        const currentPath = window.location.pathname.toLowerCase().replace(/\/$/, "");
+        const currentPath = window.location.pathname.toLowerCase();
 
-        if (currentPath === '/todo') {
+        if (currentPath.includes('/todo')) {
             if (user.role === 'admin') {
                 return <TodoPage db={db} user={user} handleLogout={handleLogout} setError={setError} setMessage={setMessage} />;
             } else {
@@ -1127,277 +1397,6 @@ const ManualModal = ({ db, user, manual, categories, closeModal, setError, setMe
                             {manual && confirmDelete && <div className="flex gap-2"><button type="button" onClick={handleDelete} disabled={isSaving} className="btn-danger">Confirm</button><button type="button" onClick={() => setConfirmDelete(false)} disabled={isSaving} className="btn-secondary">Cancel</button></div>}
                         </div>
                         <div className="flex gap-3"><button type="button" onClick={closeModal} className="btn-secondary">Cancel</button><button type="submit" disabled={isSaving} className="btn-primary">{isSaving ? 'Saving...' : (manual ? 'Save Changes' : 'Create Manual')}</button></div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-// --- Todo Page (Admin Only) ---
-const TodoPage = ({ db, user, handleLogout, setError, setMessage }) => {
-    const [activeTab, setActiveTab] = useState('todo');
-    const [tasks, setTasks] = useState([]);
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [isMarkDoneModalOpen, setIsMarkDoneModalOpen] = useState(false);
-    const [taskToMarkDone, setTaskToMarkDone] = useState(null);
-
-    useEffect(() => {
-        if (!db) return;
-        const q = query(collection(db, `artifacts/${appId}/public/data/todo_items`));
-        const unsub = onSnapshot(q, (snapshot) => {
-            const fetchedTasks = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            fetchedTasks.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-            setTasks(fetchedTasks);
-        }, () => setError("Failed to load todo tasks."));
-        return () => unsub();
-    }, [db, setError]);
-
-    const todoTasks = useMemo(() => tasks.filter(t => t.status === 'todo'), [tasks]);
-    const doneTasks = useMemo(() => tasks.filter(t => t.status === 'done'), [tasks]);
-
-    const openMarkDoneModal = (task) => {
-        setTaskToMarkDone(task);
-        setIsMarkDoneModalOpen(true);
-    };
-
-    return (
-        <div className="p-4 sm:p-8 max-w-6xl mx-auto">
-            <header className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Todo List</h1>
-                    <p className="text-slate-500">Manage administrative tasks</p>
-                </div>
-                <div className="flex gap-4">
-                    <button onClick={() => window.location.href = '/'} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-white rounded-lg font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition">Back to Dashboard</button>
-                    <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-500 transition"><LogOut size={18}/> Logout</button>
-                </div>
-            </header>
-
-            <div className="mb-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                <nav className="flex space-x-8">
-                    <button onClick={() => setActiveTab('todo')} className={`py-4 px-2 font-bold transition-colors relative ${activeTab === 'todo' ? 'text-sky-600' : 'text-slate-500 hover:text-slate-700'}`}>
-                        Actieve Lijst
-                        {activeTab === 'todo' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-600 rounded-t-full"></div>}
-                    </button>
-                    <button onClick={() => setActiveTab('done')} className={`py-4 px-2 font-bold transition-colors relative ${activeTab === 'done' ? 'text-sky-600' : 'text-slate-500 hover:text-slate-700'}`}>
-                        Voltooid
-                        {activeTab === 'done' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-600 rounded-t-full"></div>}
-                    </button>
-                </nav>
-                {activeTab === 'todo' && (
-                    <button onClick={() => setIsAddModalOpen(true)} className="btn-primary flex items-center gap-2">
-                        <Plus size={18}/> Nieuwe Taak
-                    </button>
-                )}
-            </div>
-
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg overflow-hidden">
-                {activeTab === 'todo' ? (
-                    <TodoTable tasks={todoTasks} onMarkDone={openMarkDoneModal} />
-                ) : (
-                    <DoneTable tasks={doneTasks} />
-                )}
-            </div>
-
-            {isAddModalOpen && <AddTodoModal db={db} user={user} closeModal={() => setIsAddModalOpen(false)} setError={setError} setMessage={setMessage} />}
-            {isMarkDoneModalOpen && <MarkDoneModal db={db} user={user} task={taskToMarkDone} closeModal={() => setIsMarkDoneModalOpen(false)} setError={setError} setMessage={setMessage} />}
-        </div>
-    );
-};
-
-const TodoTable = ({ tasks, onMarkDone }) => {
-    if (tasks.length === 0) return <div className="p-12 text-center text-slate-500">Geen actieve taken.</div>;
-    return (
-        <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-                <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-700/50 border-b dark:border-slate-700">
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Taak</th>
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Toegevoegd Door</th>
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Belangrijkheid</th>
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Verantwoordelijke</th>
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200 text-right">Acties</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y dark:divide-slate-700">
-                    {tasks.map(task => (
-                        <tr key={task.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
-                            <td className="p-4 text-slate-800 dark:text-slate-200 font-medium">{task.text}</td>
-                            <td className="p-4 text-slate-600 dark:text-slate-400 text-sm">{task.addedByName}</td>
-                            <td className="p-4">
-                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                    task.importance === 'high' ? 'bg-red-100 text-red-700' :
-                                    task.importance === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                    'bg-green-100 text-green-700'
-                                }`}>
-                                    {task.importance.toUpperCase()}
-                                </span>
-                            </td>
-                            <td className="p-4 text-slate-600 dark:text-slate-400 text-sm">{task.responsible}</td>
-                            <td className="p-4 text-right">
-                                <button onClick={() => onMarkDone(task)} className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-full" title="Markeren als voltooid">
-                                    <CheckCircle size={20}/>
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-};
-
-const DoneTable = ({ tasks }) => {
-    if (tasks.length === 0) return <div className="p-12 text-center text-slate-500">Geen voltooide taken.</div>;
-    return (
-        <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-                <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-700/50 border-b dark:border-slate-700">
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Taak</th>
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Belangrijkheid</th>
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Afgevinkt Door</th>
-                        <th className="p-4 font-bold text-slate-700 dark:text-slate-200">Opmerking</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y dark:divide-slate-700">
-                    {tasks.map(task => (
-                        <tr key={task.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition text-sm">
-                            <td className="p-4">
-                                <p className="text-slate-800 dark:text-slate-200 font-medium">{task.text}</p>
-                                <p className="text-slate-500 text-xs">Door {task.addedByName} voor {task.responsible}</p>
-                            </td>
-                            <td className="p-4">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    task.importance === 'high' ? 'bg-red-50 text-red-600' :
-                                    task.importance === 'medium' ? 'bg-yellow-50 text-yellow-600' :
-                                    'bg-green-50 text-green-600'
-                                }`}>
-                                    {task.importance}
-                                </span>
-                            </td>
-                            <td className="p-4">
-                                <p className="text-slate-800 dark:text-slate-200">{task.markedOffByName}</p>
-                                <p className="text-slate-500 text-xs">{task.completedAt?.toDate().toLocaleDateString()}</p>
-                            </td>
-                            <td className="p-4 text-slate-600 dark:text-slate-400 italic">
-                                {task.comment || 'Geen opmerking'}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-};
-
-const AddTodoModal = ({ db, user, closeModal, setError, setMessage }) => {
-    const [text, setText] = useState('');
-    const [importance, setImportance] = useState('medium');
-    const [responsible, setResponsible] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!text || !responsible) return;
-        setIsSaving(true);
-        try {
-            await addDoc(collection(db, `artifacts/${appId}/public/data/todo_items`), {
-                text,
-                importance,
-                responsible,
-                status: 'todo',
-                addedByUid: user.uid,
-                addedByName: user.name || user.email,
-                createdAt: Timestamp.now()
-            });
-            setMessage("Taak succesvol toegevoegd.");
-            closeModal();
-        } catch (err) {
-            setError("Fout bij het toevoegen van taak.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Nieuwe Taak Toevoegen</h2>
-                    <button onClick={closeModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
-                </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Wat moet er gebeuren?</label>
-                        <textarea value={text} onChange={e => setText(e.target.value)} required className="w-full input-style" rows="3" placeholder="Beschrijf de taak..."></textarea>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Belangrijkheid</label>
-                            <select value={importance} onChange={e => setImportance(e.target.value)} className="w-full input-style">
-                                <option value="low">Laag</option>
-                                <option value="medium">Gemiddeld</option>
-                                <option value="high">Hoog</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Verantwoordelijke</label>
-                            <input type="text" value={responsible} onChange={e => setResponsible(e.target.value)} required className="w-full input-style" placeholder="Naam..."/>
-                        </div>
-                    </div>
-                    <div className="flex gap-3 pt-4">
-                        <button type="button" onClick={closeModal} className="flex-1 btn-secondary py-3">Annuleren</button>
-                        <button type="submit" disabled={isSaving} className="flex-1 btn-primary py-3">{isSaving ? 'Bezig...' : 'Toevoegen'}</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-const MarkDoneModal = ({ db, user, task, closeModal, setError, setMessage }) => {
-    const [comment, setComment] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setIsSaving(true);
-        try {
-            const taskRef = doc(db, `artifacts/${appId}/public/data/todo_items`, task.id);
-            await updateDoc(taskRef, {
-                status: 'done',
-                comment,
-                markedOffByUid: user.uid,
-                markedOffByName: user.name || user.email,
-                completedAt: Timestamp.now()
-            });
-            setMessage("Taak voltooid.");
-            closeModal();
-        } catch (err) {
-            setError("Fout bij het updaten van taak.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Taak Voltooien</h2>
-                    <button onClick={closeModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
-                </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div>
-                        <p className="text-sm text-slate-500 mb-2">Taak: <span className="text-slate-800 dark:text-slate-200 font-medium">{task.text}</span></p>
-                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Optionele opmerking</label>
-                        <textarea value={comment} onChange={e => setComment(e.target.value)} className="w-full input-style" rows="3" placeholder="Hoe is het gegaan?"></textarea>
-                    </div>
-                    <div className="flex gap-3 pt-4">
-                        <button type="button" onClick={closeModal} className="flex-1 btn-secondary py-3">Annuleren</button>
-                        <button type="submit" disabled={isSaving} className="flex-1 btn-primary py-3 bg-green-600 hover:bg-green-500">{isSaving ? 'Bezig...' : 'Voltooien'}</button>
                     </div>
                 </form>
             </div>
