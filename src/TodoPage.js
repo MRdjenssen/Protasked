@@ -291,15 +291,15 @@ function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false,
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {groupedTasks.map((group) => (
         <section key={group.location}>
-          <div className="mb-3 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
+          <div className="mb-2 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
             <MapPin size={18} className="text-sky-600 dark:text-sky-400" />
             <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{locationLabels[group.location]}</h2>
             <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-xs font-bold text-slate-600 dark:text-slate-300">{group.tasks.length}</span>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-2">
             {group.tasks.map((task) => <TaskCard key={task.id} task={task} onComplete={onComplete} completed={completed} onDelete={onDelete} />)}
           </div>
         </section>
@@ -309,44 +309,49 @@ function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false,
 }
 
 function TaskCard({ task, onComplete, completed, onDelete }) {
-  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const title = taskTitle(task);
   const description = taskDescription(task);
   const location = normalizeLocation(task.location);
 
   return (
-    <article className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-      <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-        {onComplete && <button onClick={() => onComplete(task)} title="Mark task as completed" className="flex-shrink-0 mt-1"><Circle className="text-slate-300 hover:text-green-500" size={28} /></button>}
-        {completed && <CheckCircle className="flex-shrink-0 mt-1 text-green-500" size={28} />}
-        <div className="flex-grow min-w-0">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 break-words">{title}</h2>
+    <article className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+      <button
+        type="button"
+        onClick={() => setDetailsOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
+      >
+        <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100 break-words">{title}</h2>
+        <ChevronDown size={18} className={`flex-shrink-0 text-slate-400 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {detailsOpen && (
+        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-4">
+          <div className="flex flex-wrap gap-2 mb-4">
+            {onComplete && (
+              <button type="button" onClick={() => onComplete(task)} className="btn-primary compact flex items-center gap-2">
+                <CheckCircle size={16} /> Mark off
+              </button>
+            )}
+            {completed && <span className="inline-flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-bold text-green-700 dark:bg-green-900/50 dark:text-green-300"><CheckCircle size={16} /> Completed</span>}
             {completed && onDelete && (
-              <button onClick={() => onDelete(task)} className="btn-danger compact flex items-center justify-center gap-2 self-start">
+              <button type="button" onClick={() => onDelete(task)} className="btn-danger compact flex items-center justify-center gap-2">
                 <Trash2 size={16} /> Delete
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
             <Meta icon={<MapPin size={15} />} label="Location" value={locationLabels[location]} />
             <Meta icon={<User size={15} />} label="Added by" value={task.addedByName || 'Unknown'} />
             <Meta icon={<Flag size={15} />} label="Importance" value={labels[task.importance] || 'Normal'} badgeClass={badge[task.importance] || badge.normal} />
             <Meta icon={<UserCheck size={15} />} label="Responsible" value={task.responsible || 'Not assigned'} />
           </div>
 
-          {description ? (
-            <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-              <button onClick={() => setDescriptionOpen((current) => !current)} className="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                <span>Description</span>
-                <ChevronDown size={18} className={`transition-transform ${descriptionOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {descriptionOpen && <p className="px-3 pb-3 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">{description}</p>}
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">No description added.</p>
-          )}
+          <div className="mt-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3 text-sm text-slate-600 dark:text-slate-300">
+            <p className="text-xs uppercase tracking-wide text-slate-400 font-bold mb-1">Description</p>
+            {description ? <p className="whitespace-pre-wrap">{description}</p> : <p className="text-slate-400 dark:text-slate-500">No description added.</p>}
+          </div>
 
           {completed && (
             <div className="mt-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 p-3 text-sm text-slate-600 dark:text-slate-300">
@@ -355,7 +360,7 @@ function TaskCard({ task, onComplete, completed, onDelete }) {
             </div>
           )}
         </div>
-      </div>
+      )}
     </article>
   );
 }
@@ -485,6 +490,7 @@ const styles = `
 .btn-primary { padding: 0.6rem 1rem; background-color: #0ea5e9; color: white; border-radius: 0.5rem; font-weight: 700; transition: background-color 0.2s; }
 .btn-primary:hover { background-color: #0284c7; }
 .btn-primary:disabled { background-color: #93c5fd; cursor: not-allowed; }
+.btn-primary.compact { padding: 0.45rem 0.75rem; font-size: 0.875rem; }
 .btn-secondary { padding: 0.6rem 1rem; background-color: #e2e8f0; color: #1e293b; border-radius: 0.5rem; font-weight: 700; transition: background-color 0.2s; }
 .btn-secondary:hover { background-color: #cbd5e1; }
 .btn-secondary.compact { padding: 0.45rem 0.75rem; font-size: 0.875rem; }
