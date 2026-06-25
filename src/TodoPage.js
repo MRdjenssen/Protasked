@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, Timestamp, setLogLevel } from 'firebase/firestore';
-import { AlertTriangle, CheckCircle, ChevronDown, Circle, Flag, LogOut, MapPin, MessageSquare, Plus, Trash2, User, UserCheck, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, ChevronDown, Circle, Flag, LogOut, MapPin, MessageSquare, Pencil, Plus, Trash2, User, UserCheck, X } from 'lucide-react';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDn7jLT-4miPWcFyFLIFDgsc2vGD1i9Qpc',
@@ -62,6 +62,7 @@ export default function TodoPage() {
   const [filters, setFilters] = useState({ location: 'all', importance: 'all', responsible: 'all' });
   const [showAdd, setShowAdd] = useState(false);
   const [completeTask, setCompleteTask] = useState(null);
+  const [editTask, setEditTask] = useState(null);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
@@ -180,7 +181,7 @@ export default function TodoPage() {
                 totalCount={tab === 'open' ? openTasks.length : completedTasks.length}
               />
               {tab === 'open' ? (
-                <TaskList tasks={filteredOpenTasks} emptyTitle="No open tasks" emptyText="Create the first action item or change the filters." onComplete={setCompleteTask} />
+                <TaskList tasks={filteredOpenTasks} emptyTitle="No open tasks" emptyText="Create the first action item or change the filters." onComplete={setCompleteTask} onEdit={setEditTask} />
               ) : (
                 <TaskList tasks={filteredCompletedTasks} emptyTitle="No completed tasks" emptyText="Completed tasks will be stored here. Change the filters if needed." completed onDelete={deleteCompletedTask} />
               )}
@@ -191,6 +192,7 @@ export default function TodoPage() {
 
       {showAdd && <AddTask db={db} user={user} close={() => setShowAdd(false)} setError={setError} setMessage={setMessage} />}
       {completeTask && <CompleteTask db={db} user={user} task={completeTask} close={() => setCompleteTask(null)} setError={setError} setMessage={setMessage} />}
+      {editTask && <EditTask db={db} user={user} task={editTask} close={() => setEditTask(null)} setError={setError} setMessage={setMessage} />}
       {message && <Toast type="success" message={message} close={() => setMessage(null)} />}
       {error && <Toast type="error" message={error} close={() => setError(null)} />}
       <style>{styles}</style>
@@ -273,7 +275,7 @@ function FilterPanel({ filters, setFilters, responsibleOptions, visibleCount, to
   );
 }
 
-function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false, onDelete }) {
+function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false, onDelete, onEdit }) {
   const groupedTasks = useMemo(() => {
     return locationOrder
       .map((location) => ({ location, tasks: tasks.filter((task) => normalizeLocation(task.location) === location) }))
@@ -300,7 +302,7 @@ function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false,
             <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-xs font-bold text-slate-600 dark:text-slate-300">{group.tasks.length}</span>
           </div>
           <div className="space-y-2">
-            {group.tasks.map((task) => <TaskCard key={task.id} task={task} onComplete={onComplete} completed={completed} onDelete={onDelete} />)}
+            {group.tasks.map((task) => <TaskCard key={task.id} task={task} onComplete={onComplete} completed={completed} onDelete={onDelete} onEdit={onEdit} />)}
           </div>
         </section>
       ))}
@@ -308,7 +310,7 @@ function TaskList({ tasks, emptyTitle, emptyText, onComplete, completed = false,
   );
 }
 
-function TaskCard({ task, onComplete, completed, onDelete }) {
+function TaskCard({ task, onComplete, completed, onDelete, onEdit }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const title = taskTitle(task);
   const description = taskDescription(task);
@@ -328,6 +330,11 @@ function TaskCard({ task, onComplete, completed, onDelete }) {
       {detailsOpen && (
         <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-4">
           <div className="flex flex-wrap gap-2 mb-4">
+            {onEdit && !completed && (
+              <button type="button" onClick={() => onEdit(task)} className="btn-secondary compact flex items-center gap-2">
+                <Pencil size={16} /> Edit
+              </button>
+            )}
             {onComplete && (
               <button type="button" onClick={() => onComplete(task)} className="btn-primary compact flex items-center gap-2">
                 <CheckCircle size={16} /> Mark off
@@ -420,6 +427,56 @@ function AddTask({ db, user, close, setError, setMessage }) {
           <div><label className="label">Responsible person / party</label><input value={responsible} onChange={(event) => setResponsible(event.target.value)} required className="input-style" placeholder="e.g. Sam, supplier, planning" /></div>
         </div>
         <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={close} className="btn-secondary">Cancel</button><button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Add task'}</button></div>
+      </form>
+    </Modal>
+  );
+}
+
+function EditTask({ db, user, task, close, setError, setMessage }) {
+  const [title, setTitle] = useState(taskTitle(task));
+  const [description, setDescription] = useState(taskDescription(task));
+  const [location, setLocation] = useState(normalizeLocation(task.location));
+  const [importance, setImportance] = useState(task.importance || 'normal');
+  const [responsible, setResponsible] = useState(task.responsible || '');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!db || !user || !task || task.status === 'completed') return;
+    if (!title.trim() || !responsible.trim()) return setError('Fill in the title and responsible person or party.');
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, tasksPath, task.id), {
+        title: title.trim(),
+        description: description.trim(),
+        task: title.trim(),
+        location,
+        importance,
+        responsible: responsible.trim(),
+        editedAt: Timestamp.now(),
+        editedByUid: user.uid,
+        editedByName: nameOf(user),
+      });
+      setMessage('Task updated.');
+      close();
+    } catch (err) {
+      setError('Could not update the task.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title="Edit action item" close={close}>
+      <form onSubmit={submit} className="space-y-4">
+        <div><label className="label">Title</label><input value={title} onChange={(event) => setTitle(event.target.value)} required className="input-style" placeholder="Short title for the task" /></div>
+        <div><label className="label">Description</label><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows="4" className="input-style" placeholder="Add the details here." /></div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div><label className="label">Location</label><select value={location} onChange={(event) => setLocation(event.target.value)} className="input-style"><option value="WB">WB</option><option value="SB">SB</option><option value="algemeen">Algemeen</option></select></div>
+          <div><label className="label">Importance</label><select value={importance} onChange={(event) => setImportance(event.target.value)} className="input-style"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
+          <div><label className="label">Responsible person / party</label><input value={responsible} onChange={(event) => setResponsible(event.target.value)} required className="input-style" placeholder="e.g. Sam, supplier, planning" /></div>
+        </div>
+        <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={close} className="btn-secondary">Cancel</button><button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Save changes'}</button></div>
       </form>
     </Modal>
   );
