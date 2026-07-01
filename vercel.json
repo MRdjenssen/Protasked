@@ -1,5 +1,5 @@
 {
-  "buildCommand": "node scripts/apply-build-patches.js && npm run build",
+  "buildCommand": "node scripts/apply-build-patches.js && node scripts/apply-todo-input-text-color-fix.js && npm run build",
   "rewrites": [
     {
       "source": "/(.*)",
