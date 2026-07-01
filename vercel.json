@@ -1,5 +1,5 @@
 {
-  "buildCommand": "node scripts/apply-task-layout-overhaul.js && node scripts/apply-task-layout-tablet-tweaks.js && node scripts/apply-admin-calendar-overhaul.js && npm run build",
+  "buildCommand": "node scripts/apply-task-layout-overhaul.js && node scripts/apply-task-layout-tablet-tweaks.js && node scripts/apply-admin-calendar-overhaul.js && node scripts/apply-admin-extra-completion-counter.js && npm run build",
   "rewrites": [
     {
       "source": "/(.*)",
