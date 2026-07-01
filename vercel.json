@@ -1,5 +1,5 @@
 {
-  "buildCommand": "node scripts/apply-task-layout-overhaul.js && react-scripts build",
+  "buildCommand": "node scripts/apply-task-layout-overhaul.js && npm run build",
   "rewrites": [
     {
       "source": "/(.*)",
