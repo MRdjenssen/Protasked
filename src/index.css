@@ -94,6 +94,18 @@ body {
   box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
 }
 
+select.input-style,
+select.input-style option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+select.input-style option:checked,
+select.input-style option:hover {
+  background-color: #e0f2fe !important;
+  color: #0f172a !important;
+}
+
 @media (prefers-color-scheme: dark) {
   .btn-secondary {
     background: #334155;
@@ -121,6 +133,18 @@ body {
     background: #334155;
     color: #f8fafc;
     border-color: #475569;
+  }
+
+  select.input-style {
+    background-color: #334155 !important;
+    color: #f8fafc !important;
+    border-color: #475569 !important;
+  }
+
+  select.input-style option,
+  .dark select.input-style option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
   }
 
   .input-style::placeholder {
