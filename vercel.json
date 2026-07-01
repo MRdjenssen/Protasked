@@ -1,1 +1,9 @@
-{"rewrites":[{"source":"/(.*)","destination":"/index.html"}]}
+{
+  "buildCommand": "node scripts/apply-task-layout-overhaul.js && react-scripts build",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
